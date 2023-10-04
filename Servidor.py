@@ -33,9 +33,10 @@ class Product:
 
 # Classe que representa um usuário do sistema
 class User:
-    def __init__(self, name, public_key):
+    def __init__(self, name, public_key, client_object):
         self.name = name
         self.public_key = public_key
+        self.client_object = client_object
 
 # Classe que representa o sistema de gestão de estoque
 class StockManagementSystem:
@@ -49,7 +50,7 @@ class StockManagementSystem:
         print("Usuarios cadastrados: ", self.users)
         print("Name:", name)
         if name not in self.users:
-            user = User(name, public_key)
+            user = User(name, public_key, client_object)
             self.users[name] = user
             print(self.users[name], self.users[name].name, self.users, self.users[name].public_key)
             return f"Usuário {name} registrado com sucesso."
@@ -57,30 +58,31 @@ class StockManagementSystem:
             print("else")
             return f"Usuário {name} já está registrado."
 
-    def add_product(self, code, name, description, quantity, price, min_stock):
-        if code not in self.products:
-            product = Product(code, name, description, quantity, price, min_stock)
-            self.products[code] = product
-            return f"Produto {name} ({code}) adicionado ao estoque."
-        else:
-            return f"Produto {name} ({code}) já está no estoque."
 
-    def record_entry(self, code, user_name, quantity, signature):
+    @Pyro5.api.expose
+    def record_entry(self, user_name, code, name, description, quantity, price, min_stock, signature):
         if user_name in self.users:
             user = self.users[user_name]
             if code in self.products:
+                print("Produto adicionado")
                 product = self.products[code]
                 # Verificar a assinatura digital com a chave pública do usuário
                 if self.verify_signature(signature, user.public_key):
+                    print("Assinatura digital válida.")
                     product.add_entry(quantity)
                     # Verificar se a quantidade após a entrada atingiu o estoque mínimo
                     if product.quantity <= product.min_stock:
                         self.notify_replenishment(user_name, product)
                     return f"Entrada de {quantity} unidades de {product.name} registrada."
                 else:
+                    print("Assinatura digital inválida.")
                     return "Assinatura digital inválida."
             else:
-                return "Produto não encontrado."
+                print(name, code)
+                product = Product(code, name, description, quantity, price, min_stock)
+                self.products[code] = product
+                return f"Produto {name} ({code}) adicionado ao estoque."
+
         else:
             return "Usuário não encontrado."
 
@@ -113,9 +115,17 @@ class StockManagementSystem:
     @Pyro5.api.expose 
     def notify_replenishment(self, user_name, product):
         # Método para notificar o gestor quando um produto atinge o estoque mínimo
-        if user_name in self.clients:
-            client = self.clients[user_name]
-            client.notify_replenishment(product.code)
+        print("produto fora de esoque")
+        print(user_name, self.users)
+        if user_name in self.users:
+            print("user in clientes")
+            client = self.users[user_name]
+            print(client.client_object)
+
+            auxObject = Pyro5.api.Proxy(client.client_object)
+            print("ok1")
+            auxObject.notify_replenishment(product.code)
+            print("ok3")
     @Pyro5.api.expose
     def notify_unsold_products(self):
         # Método para enviar relatórios periódicos sobre produtos não vendidos
