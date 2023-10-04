@@ -1,5 +1,6 @@
 import Pyro5.api
 import threading
+import inquirer
 
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.backends import default_backend
@@ -10,10 +11,13 @@ from cryptography.hazmat.primitives import serialization
 # Classe que representa o cliente do sistema de gestão de estoque
 class StockManagementClient:
 
+    @Pyro5.api.expose 
     def notify_replenishment(self, product_code):
+        print("ok2")
         # Método chamado pelo servidor para notificar sobre a reposição de estoque
         print(f"Produto {product_code} atingiu o estoque mínimo. É necessário repor o estoque.")
 
+    @Pyro5.api.expose 
     def notify_unsold_products(self, product):
         # Método chamado pelo servidor para enviar relatórios de produtos não vendidos
         print(f"Produto {product['name']} ({product['code']}) não foi vendido.")
@@ -73,15 +77,27 @@ if __name__ == "__main__":
     server_uri = servidor_nomes.lookup("stock_management_system")
     #server_uri = "PYRONAME:stock_management_system"  # URI do servidor PyRO
 
-    
-
-    with Pyro5.api.Proxy(server_uri) as server:
-        name = "NomeDoGestor2"  # Nome do gestor de estoque
-        response = server.register_user(name,public_key, uri)
-        print(response)
-        # O cliente agora está registrado no servidor e pronto para receber notificações e relatórios
+    server = Pyro5.api.Proxy(server_uri) 
+    name = "NomeDoGestor2"  # Nome do gestor de estoque
+    response = server.register_user(name,public_key, uri)
+    print(response)
+    # O cliente agora está registrado no servidor e pronto para receber notificações e relatórios
         
 
 
     #colocar request loop dentro de uma thread
     threading.Thread(target=daemon.requestLoop).start()
+
+
+    #while(True):
+    questions = [
+            inquirer.Checkbox('action', message="Qual acao deseja tomar?", 
+                          choices=['Entrada de produtos', 'Saida de produtos', 'Relatorio'],)
+
+    ]
+    answer = inquirer.prompt(questions)
+    print(answer)
+
+    if(answer['action'][0] == 'Entrada de produtos'):
+            print('Entrada de produtos')
+            server.record_entry(name, 1, 'bulacha', 'Bolacha Waffer', 10, 5.5, 50, public_key)
