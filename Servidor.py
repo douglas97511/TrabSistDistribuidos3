@@ -63,7 +63,7 @@ class StockManagementSystem:
     def record_entry(self, user_name, code, name, description, quantity, price, min_stock, signature):
         if user_name in self.users:
             user = self.users[user_name]
-            if code in self.products:
+            if code  in self.products:
                 print("Produto adicionado")
                 product = self.products[code]
                 # Verificar a assinatura digital com a chave pública do usuário
@@ -81,11 +81,12 @@ class StockManagementSystem:
                 print(name, code)
                 product = Product(code, name, description, quantity, price, min_stock)
                 self.products[code] = product
+                product.add_entry(quantity)
                 return f"Produto {name} ({code}) adicionado ao estoque."
 
         else:
             return "Usuário não encontrado."
-
+    @Pyro5.api.expose
     def record_exit(self, code, user_name, quantity, signature):
         if user_name in self.users:
             user = self.users[user_name]
@@ -107,15 +108,71 @@ class StockManagementSystem:
         # Use a chave pública para verificar a assinatura
         # Retorne True se a assinatura for válida, caso contrário, retorne False
         return True
+    
     @Pyro5.api.expose
-    def generate_stock_report(self):
-        # Implemente a geração de relatórios aqui
-        # Isso pode incluir produtos em estoque, movimentação de estoque e produtos sem saída
-        pass
+    def generate_stock_report(self, report_type):
+            if report_type == 'Produtos em estoque':
+                emEstoque = []
+                for product in self.products.values():
+                     if product.quantity > product.min_stock:
+                        product_info = {
+                            "code": product.code,
+                            "name": product.name,
+                            "quantity": product.quantity
+                            }
+                        emEstoque.append(product_info)
+                return emEstoque
+    
+            elif report_type == 'Fluxo de movimentação':
+                current_time = datetime.datetime.now()
+                time = current_time - datetime.timedelta(minutes=1)
+           
+    
+                fluxoMov = []
+                for product in self.products.values():
+                     if product.quantity > product.min_stock:
+                        product_info = {
+                            "code": product.code,
+                            "name": product.name,
+                            "movements": []
+                            }
+
+                # Filtrar os movimentos que ocorreram até 2 minutos atrás
+                for movement_time, movement_type, movement_quantity in product.movements:
+                    if movement_time >= time:
+                        product_info["movements"].append({
+                            "time": movement_time,
+                            "type": movement_type,
+                            "quantity": movement_quantity
+                             })
+
+                fluxoMov.append(product_info)
+                return  fluxoMov
+                
+            elif report_type == 'Lista de produtos sem saída':
+                current_time = datetime.datetime.now()
+                two_minutes_ago = current_time - datetime.timedelta(minutes=1)
+
+                unsold_products = []
+
+                for product in self.products.values():
+                    has_exit_movements = any(
+                        movement_time >= two_minutes_ago and movement_type == "saída"
+                        for movement_time, movement_type, _ in product.movements
+                    )
+
+                    if not has_exit_movements:
+                        unsold_products.append({
+                            "code": product.code,
+                            "name": product.name
+                        })
+
+            return unsold_products
+            
     @Pyro5.api.expose 
     def notify_replenishment(self, user_name, product):
         # Método para notificar o gestor quando um produto atinge o estoque mínimo
-        print("produto fora de esoque")
+        print("produto fora de estoque")
         print(user_name, self.users)
         if user_name in self.users:
             print("user in clientes")
